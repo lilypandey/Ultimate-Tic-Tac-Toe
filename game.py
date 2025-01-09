@@ -1,139 +1,167 @@
-import math
-import copy
+class UltimateTicTacToe:
+    def __init__(self):
+        # The board is a 3x3 grid of smaller 3x3 boards
+        self.board = [[[0 for _ in range(3)] for _ in range(3)] for _ in range(9)]
+        self.meta_board = [0 for _ in range(9)]  # The overarching 3x3 "meta-board"
+        self.current_subboard = -1  # -1 means the player can choose any sub-board
 
-# Constants for the game
-PLAYER_X = "X"
-PLAYER_O = "O"
-EMPTY = "-"
-
-def create_empty_board():
-    """Creates a 3x3 board where each cell is another 3x3 board."""
-    return [[[[EMPTY for _ in range(3)] for _ in range(3)] for _ in range(3)] for _ in range(3)]
-
-def check_winner(board):
-    """Checks the winner of a 3x3 board."""
-    for row in board:
-        if row[0] == row[1] == row[2] != EMPTY:
-            return row[0]
-    for col in range(3):
-        if board[0][col] == board[1][col] == board[2][col] != EMPTY:
-            return board[0][col]
-    if board[0][0] == board[1][1] == board[2][2] != EMPTY:
-        return board[0][0]
-    if board[0][2] == board[1][1] == board[2][0] != EMPTY:
-        return board[0][2]
-    return None
-
-def is_full(board):
-    """Checks if a 3x3 board is full."""
-    return all(cell != EMPTY for row in board for cell in row)
-
-def evaluate(board):
-    """Heuristic evaluation for a 3x3 board."""
-    winner = check_winner(board)
-    if winner == PLAYER_X:
-        return 10
-    elif winner == PLAYER_O:
-        return -10
-    return 0
-
-def is_terminal(board):
-    """Checks if the game is over for a 3x3 board."""
-    return check_winner(board) is not None or is_full(board)
-
-def minimax(board, depth, alpha, beta, maximizing_player):
-    """Minimax algorithm with alpha-beta pruning for a 3x3 board."""
-    if depth == 0 or is_terminal(board):
-        return evaluate(board)
-
-    if maximizing_player:
-        max_eval = -math.inf
+    def display(self):
+        """Display the board in a readable format."""
         for i in range(3):
-            for j in range(3):
-                if board[i][j] == EMPTY:
-                    board[i][j] = PLAYER_X
-                    eval = minimax(board, depth - 1, alpha, beta, False)
-                    board[i][j] = EMPTY
-                    max_eval = max(max_eval, eval)
-                    alpha = max(alpha, eval)
-                    if beta <= alpha:
-                        break
-        return max_eval
-    else:
-        min_eval = math.inf
+            for row in range(3):
+                line = ""
+                for j in range(3):
+                    subboard_index = i * 3 + j
+                    line += " | ".join(
+                        ["X" if cell == 1 else "O" if cell == -1 else "." for cell in self.board[subboard_index][row]]
+                    )
+                    line += "   "
+                print(line)
+            print("-" * 50)
+        print("\nMeta-Board:")
         for i in range(3):
-            for j in range(3):
-                if board[i][j] == EMPTY:
-                    board[i][j] = PLAYER_O
-                    eval = minimax(board, depth - 1, alpha, beta, True)
-                    board[i][j] = EMPTY
-                    min_eval = min(min_eval, eval)
-                    beta = min(beta, eval)
-                    if beta <= alpha:
-                        break
-        return min_eval
+            print(" | ".join(
+                ["X" if cell == 1 else "O" if cell == -1 else "." for cell in self.meta_board[i * 3:i * 3 + 3]]
+            ))
+        print()
 
-def find_best_move(board, maximizing_player):
-    """Finds the best move for the current player."""
-    best_move = None
-    best_value = -math.inf if maximizing_player else math.inf
+    def is_winner(self, subboard):
+        """Check if a sub-board has a winner."""
+        # Check rows, columns, and diagonals
+        for i in range(3):
+            if abs(sum(self.board[subboard][i])) == 3:  # Row check
+                return self.board[subboard][i][0]
+            if abs(sum(row[i] for row in self.board[subboard])) == 3:  # Column check
+                return self.board[subboard][0][i]
+        # Diagonal checks
+        if abs(self.board[subboard][0][0] + self.board[subboard][1][1] + self.board[subboard][2][2]) == 3:
+            return self.board[subboard][0][0]
+        if abs(self.board[subboard][0][2] + self.board[subboard][1][1] + self.board[subboard][2][0]) == 3:
+            return self.board[subboard][0][2]
+        return 0  # No winner yet
 
-    for i in range(3):
-        for j in range(3):
-            if board[i][j] == EMPTY:
-                board[i][j] = PLAYER_X if maximizing_player else PLAYER_O
-                move_value = minimax(board, 4, -math.inf, math.inf, not maximizing_player)
-                board[i][j] = EMPTY
+    def update_meta_board(self):
+        """Update the overarching 3x3 meta-board based on sub-board winners."""
+        for i in range(9):
+            if self.meta_board[i] == 0:  # Check if the sub-board isn't already won
+                winner = self.is_winner(i)
+                if winner != 0:
+                    self.meta_board[i] = winner
 
-                if maximizing_player and move_value > best_value:
-                    best_value = move_value
-                    best_move = (i, j)
-                elif not maximizing_player and move_value < best_value:
-                    best_value = move_value
-                    best_move = (i, j)
+    def is_draw(self):
+        """Check if the meta-board ends in a draw."""
+        return all(cell != 0 for cell in self.meta_board)
 
-    return best_move
+    def make_move(self, subboard, row, col, player):
+        """Make a move in the given sub-board."""
+        if self.board[subboard][row][col] != 0:
+            raise ValueError("Invalid move: Cell is already occupied.")
+        self.board[subboard][row][col] = player
 
-def play_game():
-    """Main game loop for Ultimate Tic-Tac-Toe."""
-    board = create_empty_board()
-    current_player = PLAYER_X
-    global_board = [[EMPTY for _ in range(3)] for _ in range(3)]
+        # Check if the sub-board is now won
+        self.update_meta_board()
 
-    while not is_terminal(global_board):
-        print("Global Board:")
-        for row in global_board:
-            print(" ".join(row))
+        # Determine the next sub-board to play in
+        self.current_subboard = row * 3 + col
+        if self.meta_board[self.current_subboard] != 0:  # If the sub-board is already won, any sub-board can be played
+            self.current_subboard = -1
 
-        if current_player == PLAYER_X:
-            print("Player X's turn.")
-            move = find_best_move(global_board, True)
+    def evaluate(self):
+        """Heuristic evaluation function for the AI."""
+        # Meta-board evaluation: Favor boards won by the player
+        return sum(self.meta_board)
+
+    def minimax(self, depth, is_maximizing, alpha, beta):
+        """Minimax algorithm with alpha-beta pruning."""
+        self.update_meta_board()
+        winner = self.check_meta_winner()
+        if winner != 0 or depth == 0:  # Base case
+            return winner
+
+        if is_maximizing:
+            max_eval = float('-inf')
+            for subboard in range(9):
+                if self.meta_board[subboard] != 0:
+                    continue  # Skip won subboards
+                for row in range(3):
+                    for col in range(3):
+                        if self.board[subboard][row][col] == 0:
+                            self.board[subboard][row][col] = 1  # Try move
+                            eval = self.minimax(depth - 1, False, alpha, beta)
+                            self.board[subboard][row][col] = 0  # Undo move
+                            max_eval = max(max_eval, eval)
+                            alpha = max(alpha, eval)
+                            if beta <= alpha:
+                                break
+            return max_eval
         else:
-            print("Player O's turn.")
-            move = None
-            while move is None:
-                try:
-                    user_input = input("Enter your move as 'row col': ")
-                    row, col = map(int, user_input.split())
-                    if global_board[row][col] == EMPTY:
-                        move = (row, col)
-                    else:
-                        print("Invalid move. Cell is not empty.")
-                except (ValueError, IndexError):
-                    print("Invalid input. Please enter row and column as two numbers between 0 and 2.")
+            min_eval = float('inf')
+            for subboard in range(9):
+                if self.meta_board[subboard] != 0:
+                    continue
+                for row in range(3):
+                    for col in range(3):
+                        if self.board[subboard][row][col] == 0:
+                            self.board[subboard][row][col] = -1  # Try move
+                            eval = self.minimax(depth - 1, True, alpha, beta)
+                            self.board[subboard][row][col] = 0  # Undo move
+                            min_eval = min(min_eval, eval)
+                            beta = min(beta, eval)
+                            if beta <= alpha:
+                                break
+            return min_eval
 
-        if move:
-            x, y = move
-            global_board[x][y] = current_player
+    def find_best_move(self, player, depth=3):
+        """Find the best move for the current player."""
+        best_score = float('-inf') if player == 1 else float('inf')
+        best_move = None
 
-        current_player = PLAYER_O if current_player == PLAYER_X else PLAYER_X
+        for subboard in range(9):
+            if self.meta_board[subboard] != 0:
+                continue  # Skip won subboards
+            for row in range(3):
+                for col in range(3):
+                    if self.board[subboard][row][col] == 0:
+                        self.board[subboard][row][col] = player
+                        score = self.minimax(depth - 1, player == -1, float('-inf'), float('inf'))
+                        self.board[subboard][row][col] = 0  # Undo move
 
-    print("Game Over!")
-    winner = check_winner(global_board)
-    if winner:
-        print(f"Winner: {winner}")
-    else:
-        print("It's a draw!")
+                        if (player == 1 and score > best_score) or (player == -1 and score < best_score):
+                            best_score = score
+                            best_move = (subboard, row, col)
+
+        return best_move
+
+    def check_meta_winner(self):
+        """Check if the meta-board has a winner."""
+        # Same logic as sub-board winner checking
+        for i in range(3):
+            if abs(sum(self.meta_board[i * 3:(i + 1) * 3])) == 3:  # Row check
+                return self.meta_board[i * 3]
+            if abs(sum(self.meta_board[i::3])) == 3:  # Column check
+                return self.meta_board[i]
+        if abs(self.meta_board[0] + self.meta_board[4] + self.meta_board[8]) == 3:  # Diagonal
+            return self.meta_board[0]
+        if abs(self.meta_board[2] + self.meta_board[4] + self.meta_board[6]) == 3:  # Diagonal
+            return self.meta_board[2]
+        return 0  # No winner
 
 if __name__ == "__main__":
-    play_game()
+    game = UltimateTicTacToe()
+    game.display()
+
+    while True:
+        # Human player
+        subboard, row, col = map(int, input("Enter subboard, row, col: ").split())
+        game.make_move(subboard, row, col, 1)
+        game.display()
+
+        # AI move
+        move = game.find_best_move(-1)
+        if move:
+            game.make_move(*move, -1)
+            print(f"AI moved: {move}")
+            game.display()
+        else:
+            print("Game Over!")
+            break
