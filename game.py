@@ -72,63 +72,112 @@ class UltimateTicTacToe:
         return sum(self.meta_board)
 
     def minimax(self, depth, is_maximizing, alpha, beta):
-        """Minimax algorithm with alpha-beta pruning."""
         self.update_meta_board()
         winner = self.check_meta_winner()
-        if winner != 0 or depth == 0:  # Base case
-            return winner
+        if winner != 0 or depth == 0:
+            # you can return winner, or better yet your evaluate()
+            return self.evaluate()
+
+        # figure out which subboards are legal to play right now
+        if self.current_subboard != -1:
+            allowed = [self.current_subboard]
+        else:
+            allowed = [i for i, v in enumerate(self.meta_board) if v == 0]
 
         if is_maximizing:
             max_eval = float('-inf')
-            for subboard in range(9):
-                if self.meta_board[subboard] != 0:
-                    continue  # Skip won subboards
-                for row in range(3):
-                    for col in range(3):
-                        if self.board[subboard][row][col] == 0:
-                            self.board[subboard][row][col] = 1  # Try move
-                            eval = self.minimax(depth - 1, False, alpha, beta)
-                            self.board[subboard][row][col] = 0  # Undo move
-                            max_eval = max(max_eval, eval)
-                            alpha = max(alpha, eval)
-                            if beta <= alpha:
-                                break
+            for sb in allowed:
+                for r in range(3):
+                    for c in range(3):
+                        if self.board[sb][r][c] != 0:
+                            continue
+
+                        # simulate the move
+                        old_sub = self.current_subboard
+                        self.board[sb][r][c] = 1
+
+                        # update forced‐next‐subboard
+                        target = r * 3 + c
+                        if self.meta_board[target] == 0:
+                            self.current_subboard = target
+                        else:
+                            self.current_subboard = -1
+
+                        val = self.minimax(depth - 1, False, alpha, beta)
+
+                        # undo 
+                        self.board[sb][r][c] = 0
+                        self.current_subboard = old_sub
+
+                        max_eval = max(max_eval, val)
+                        alpha = max(alpha, val)
+                        if beta <= alpha:
+                            break
             return max_eval
+
         else:
             min_eval = float('inf')
-            for subboard in range(9):
-                if self.meta_board[subboard] != 0:
-                    continue
-                for row in range(3):
-                    for col in range(3):
-                        if self.board[subboard][row][col] == 0:
-                            self.board[subboard][row][col] = -1  # Try move
-                            eval = self.minimax(depth - 1, True, alpha, beta)
-                            self.board[subboard][row][col] = 0  # Undo move
-                            min_eval = min(min_eval, eval)
-                            beta = min(beta, eval)
-                            if beta <= alpha:
-                                break
+            for sb in allowed:
+                for r in range(3):
+                    for c in range(3):
+                        if self.board[sb][r][c] != 0:
+                            continue
+
+                        old_sub = self.current_subboard
+                        self.board[sb][r][c] = -1
+
+                        target = r * 3 + c
+                        if self.meta_board[target] == 0:
+                            self.current_subboard = target
+                        else:
+                            self.current_subboard = -1
+
+                        val = self.minimax(depth - 1, True, alpha, beta)
+
+                        self.board[sb][r][c] = 0
+                        self.current_subboard = old_sub
+
+                        min_eval = min(min_eval, val)
+                        beta = min(beta, val)
+                        if beta <= alpha:
+                            break
             return min_eval
 
     def find_best_move(self, player, depth=3):
-        """Find the best move for the current player."""
         best_score = float('-inf') if player == 1 else float('inf')
         best_move = None
 
-        for subboard in range(9):
-            if self.meta_board[subboard] != 0:
-                continue  # Skip won subboards
-            for row in range(3):
-                for col in range(3):
-                    if self.board[subboard][row][col] == 0:
-                        self.board[subboard][row][col] = player
-                        score = self.minimax(depth - 1, player == -1, float('-inf'), float('inf'))
-                        self.board[subboard][row][col] = 0  # Undo move
+        # figure out which subboards AI is allowed to start in
+        if self.current_subboard != -1:
+            allowed = [self.current_subboard]
+        else:
+            allowed = [i for i, v in enumerate(self.meta_board) if v == 0]
 
-                        if (player == 1 and score > best_score) or (player == -1 and score < best_score):
-                            best_score = score
-                            best_move = (subboard, row, col)
+        for sb in allowed:
+            for r in range(3):
+                for c in range(3):
+                    if self.board[sb][r][c] != 0:
+                        continue
+
+                    # simulate
+                    old_sub = self.current_subboard
+                    self.board[sb][r][c] = player
+
+                    target = r * 3 + c
+                    if self.meta_board[target] == 0:
+                        self.current_subboard = target
+                    else:
+                        self.current_subboard = -1
+
+                    score = self.minimax(depth - 1, player == -1, float('-inf'), float('inf'))
+
+                    # undo
+                    self.board[sb][r][c] = 0
+                    self.current_subboard = old_sub
+
+                    if (player == 1 and score > best_score) or (player == -1 and score < best_score):
+                        best_score = score
+                        best_move = (sb, r, c)
 
         return best_move
 
@@ -153,6 +202,9 @@ if __name__ == "__main__":
     while True:
         # Human player
         subboard, row, col = map(int, input("Enter subboard, row, col: ").split())
+        if game.current_subboard != -1 and subboard != game.current_subboard:
+            print(f"Invalid move: you must play in sub-board {game.current_subboard}")
+            continue
         game.make_move(subboard, row, col, 1)
         game.display()
 
